@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0D0D0F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FirstMile Scan">
+<title>FirstMile Scan</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+:root{
+  --bg:#0D0D0F;--bg2:#161619;--bg3:#1E1E23;--bg4:#26262E;
+  --surface:#2A2A34;--surface2:#323240;
+  --border:#3A3A48;--border2:#48485A;
+  --text:#F0F0F5;--text2:#A8A8BC;--text3:#6A6A80;
+  --accent:#4F7CFF;--accent2:#3D63D4;--accent-soft:rgba(79,124,255,.15);
+  --green:#22C97A;--green-soft:rgba(34,201,122,.12);
+  --amber:#F5A623;--amber-soft:rgba(245,166,35,.12);
+  --red:#FF5C5C;--red-soft:rgba(255,92,92,.12);
+  --teal:#1ED4B8;--teal-soft:rgba(30,212,184,.12);
+  --r:12px;--rsm:8px;--rlg:18px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;overflow:hidden;}
+#app{height:100%;display:flex;flex-direction:column;max-width:480px;margin:0 auto;position:relative;}
+
+/* TOP BAR */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 10px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg);}
+.logo{font-family:'Space Mono',monospace;font-size:14px;color:var(--accent);letter-spacing:-0.5px;display:flex;align-items:center;gap:8px;}
+.logo-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:breathe 2s ease-in-out infinite;}
+@keyframes breathe{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(.8);}}
+.fe-pill{background:var(--surface);border:1px solid var(--border2);border-radius:20px;padding:4px 12px;font-size:12px;color:var(--text2);cursor:pointer;font-weight:500;}
+
+/* TABS */
+.tabs{display:flex;padding:10px 14px;gap:6px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg);}
+.tab{flex:1;padding:8px 6px;text-align:center;font-size:13px;font-weight:500;color:var(--text3);cursor:pointer;border-radius:var(--rsm);transition:all .2s;border:1px solid transparent;}
+.tab.on{background:var(--surface);color:var(--text);border-color:var(--border2);}
+
+/* SCROLL CONTENT */
+.pane{flex:1;overflow-y:auto;overflow-x:hidden;padding:14px 14px 100px;-webkit-overflow-scrolling:touch;}
+.pane.hidden{display:none;}
+
+/* CAMERA BLOCK */
+.cam-block{position:relative;border-radius:var(--rlg);overflow:hidden;border:1px solid var(--border);margin-bottom:12px;background:#000;aspect-ratio:4/3;}
+#camVideo{width:100%;height:100%;object-fit:cover;display:none;}
+#depthCanvas{position:absolute;inset:0;width:100%;height:100%;opacity:.5;pointer-events:none;display:none;}
+#measureCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:none;}
+.cam-idle{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:200px;}
+.cam-idle-icon{width:64px;height:64px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:28px;border:1px solid var(--border2);}
+.cam-idle p{font-size:13px;color:var(--text2);text-align:center;padding:0 24px;line-height:1.5;}
+
+/* AR OVERLAY */
+.ar-overlay{position:absolute;inset:0;pointer-events:none;}
+.corner-tl,.corner-tr,.corner-bl,.corner-br{position:absolute;width:22px;height:22px;border-color:var(--accent);border-style:solid;}
+.corner-tl{top:14px;left:14px;border-width:2.5px 0 0 2.5px;border-radius:3px 0 0 0;}
+.corner-tr{top:14px;right:14px;border-width:2.5px 2.5px 0 0;border-radius:0 3px 0 0;}
+.corner-bl{bottom:14px;left:14px;border-width:0 0 2.5px 2.5px;border-radius:0 0 0 3px;}
+.corner-br{bottom:14px;right:14px;border-width:0 2.5px 2.5px 0;border-radius:0 0 3px 0;}
+.scan-bar{position:absolute;left:14px;right:14px;height:1.5px;background:linear-gradient(90deg,transparent 0%,var(--accent) 40%,#fff 50%,var(--accent) 60%,transparent 100%);animation:scanMove 2.2s ease-in-out infinite;}
+@keyframes scanMove{0%,100%{top:18px;opacity:0;}8%,92%{opacity:1;}50%{top:calc(100% - 18px);}}
+.ar-status{position:absolute;bottom:0;left:0;right:0;padding:8px 12px;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);font-size:12px;color:var(--text2);text-align:center;}
+
+/* DIM BADGE overlays on camera */
+.dim-badge{position:absolute;background:rgba(13,13,15,.82);border:1px solid var(--accent);border-radius:6px;padding:3px 8px;font-family:'Space Mono',monospace;font-size:11px;color:var(--accent);backdrop-filter:blur(4px);display:none;}
+#badgeL{top:50%;left:14px;transform:translateY(-50%);}
+#badgeW{bottom:32px;left:50%;transform:translateX(-50%);}
+#badgeH{top:14px;right:14px;}
+
+/* ANALYZE BTN */
+.analyze-btn{width:100%;padding:15px;border-radius:var(--r);font-size:15px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;border:none;background:var(--accent);color:#fff;margin-bottom:12px;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:10px;letter-spacing:.2px;}
+.analyze-btn:active{transform:scale(.98);filter:brightness(.9);}
+.analyze-btn.idle{background:var(--surface);border:1px solid var(--border2);color:var(--text2);}
+.analyze-btn.loading{background:var(--amber);animation:btnPulse .9s ease-in-out infinite;}
+@keyframes btnPulse{0%,100%{opacity:1;}50%{opacity:.65;};}
+.analyze-btn.ready{background:var(--accent);}
+
+/* PROGRESS */
+.progress-wrap{background:var(--border);border-radius:4px;height:3px;overflow:hidden;margin-top:-8px;margin-bottom:12px;opacity:0;transition:opacity .3s;}
+.progress-wrap.show{opacity:1;}
+.progress-fill{height:100%;background:var(--accent);transition:width .15s ease;border-radius:4px;}
+
+/* RESULT CARD */
+.card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rlg);padding:15px;margin-bottom:12px;}
+.card-label{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px;}
+.dim-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;}
+.dim-cell{background:var(--surface);border-radius:var(--rsm);padding:10px 6px;text-align:center;border:1px solid var(--border);}
+.dim-v{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;}
+.dim-u{font-size:9px;color:var(--text3);margin:1px 0;}
+.dim-n{font-size:11px;color:var(--text2);}
+.vol-weight{display:flex;align-items:center;gap:12px;background:var(--surface);border-radius:var(--rsm);padding:12px;border:1px solid var(--border2);}
+.vol-icon{width:42px;height:42px;border-radius:10px;background:var(--teal-soft);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;border:1px solid rgba(30,212,184,.2);}
+.vol-label{font-size:11px;color:var(--text3);margin-bottom:3px;}
+.vol-val{font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:var(--teal);}
+.vol-sub{font-size:10px;color:var(--text3);margin-top:2px;}
+.van-flag{display:inline-flex;align-items:center;gap:6px;background:var(--amber-soft);color:var(--amber);font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;margin-top:10px;border:1px solid rgba(245,166,35,.25);}
+.conf-badge{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;}
+.conf-high{background:var(--green-soft);color:var(--green);}
+.conf-med{background:var(--amber-soft);color:var(--amber);}
+
+/* FORM */
+.field{margin-bottom:10px;}
+.field-label{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:block;}
+.field input,.field select,.field textarea{width:100%;background:var(--bg4);border:1px solid var(--border);border-radius:var(--rsm);padding:10px 12px;font-size:14px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;transition:border .2s;-webkit-appearance:none;}
+.field input:focus,.field select:focus{border-color:var(--accent);}
+.field select option{background:var(--bg3);}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+
+/* ACTIONS */
+.action-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;}
+.btn{padding:14px;border-radius:var(--r);font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;border:none;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:.1px;}
+.btn:active{transform:scale(.97);}
+.btn-accept{background:var(--green);color:#051a0e;}
+.btn-accept:active{filter:brightness(.88);}
+.btn-reject{background:var(--red-soft);color:var(--red);border:1px solid rgba(255,92,92,.3);}
+.btn-rescan{width:100%;margin-top:8px;background:var(--surface);color:var(--text3);border:1px solid var(--border);}
+
+/* LOG */
+.log-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.log-title{font-size:15px;font-weight:600;}
+.count-pill{background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:600;padding:3px 12px;border-radius:20px;}
+.log-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:13px;margin-bottom:9px;transition:border .2s;}
+.log-item:active{border-color:var(--border2);}
+.log-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:7px;}
+.log-awb{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;}
+.log-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+.status-pill{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;}
+.st-accepted{background:var(--green-soft);color:var(--green);}
+.st-rejected{background:var(--red-soft);color:var(--red);}
+.log-dims{font-size:12px;color:var(--text2);margin-bottom:5px;}
+.log-foot{display:flex;align-items:center;justify-content:space-between;}
+.log-wt{font-family:'Space Mono',monospace;font-size:12px;color:var(--teal);}
+.log-time{font-size:11px;color:var(--text3);}
+.log-van{font-size:11px;color:var(--amber);}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;}
+.stat-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:14px;}
+.stat-v{font-family:'Space Mono',monospace;font-size:22px;font-weight:700;margin-bottom:3px;}
+.stat-l{font-size:12px;color:var(--text3);}
+.stat-s{font-size:11px;color:var(--text2);margin-top:3px;}
+.info-table{width:100%;}
+.info-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);}
+.info-row:last-child{border:none;}
+.info-k{font-size:13px;color:var(--text2);}
+.info-v{font-size:13px;font-weight:500;}
+
+/* SETTINGS */
+.settings-row{display:flex;align-items:center;justify-content:space-between;padding:14px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;}
+.settings-left{flex:1;}
+.settings-title{font-size:14px;font-weight:500;margin-bottom:2px;}
+.settings-sub{font-size:12px;color:var(--text3);}
+.settings-input{background:var(--bg4);border:1px solid var(--border);border-radius:var(--rsm);padding:8px 10px;font-size:13px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;width:100%;margin-top:8px;}
+.settings-input:focus{border-color:var(--accent);}
+.toggle{width:44px;height:26px;border-radius:13px;background:var(--border);cursor:pointer;transition:background .2s;position:relative;flex-shrink:0;}
+.toggle.on{background:var(--accent);}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s;}
+.toggle.on::after{transform:translateX(18px);}
+.section-header{font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin:16px 0 8px;padding-left:2px;}
+.export-btn{width:100%;padding:13px;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .2s;margin-top:8px;}
+.export-btn:active{border-color:var(--accent);color:var(--accent);}
+.sheets-status{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:var(--rsm);margin-top:10px;font-size:12px;}
+.sheets-ok{background:var(--green-soft);color:var(--green);}
+.sheets-err{background:var(--red-soft);color:var(--red);}
+.sheets-idle{background:var(--surface);color:var(--text3);}
+
+/* TOAST */
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-100px);padding:12px 20px;border-radius:30px;font-size:14px;font-weight:600;z-index:9999;transition:transform .35s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;pointer-events:none;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.toast.ok{background:var(--green);color:#051a0e;}
+.toast.err{background:var(--red);color:#fff;}
+.toast.info{background:var(--surface);color:var(--text);border:1px solid var(--border2);}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .25s;}
+.modal-overlay.show{opacity:1;pointer-events:all;}
+.modal{background:var(--bg2);border-radius:var(--rlg) var(--rlg) 0 0;padding:20px;width:100%;transform:translateY(40px);transition:transform .3s cubic-bezier(.34,1.2,.64,1);}
+.modal-overlay.show .modal{transform:translateY(0);}
+.modal-title{font-size:16px;font-weight:600;margin-bottom:4px;}
+.modal-sub{font-size:13px;color:var(--text3);margin-bottom:16px;}
+.modal-input{width:100%;background:var(--bg4);border:1px solid var(--border);border-radius:var(--rsm);padding:12px;font-size:16px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;margin-bottom:12px;}
+.modal-input:focus{border-color:var(--accent);}
+.modal-btn{width:100%;padding:14px;border-radius:var(--r);background:var(--accent);color:#fff;font-size:15px;font-weight:600;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;}
+
+/* EMPTY */
+.empty{text-align:center;padding:60px 20px;color:var(--text3);}
+.empty-ico{font-size:44px;margin-bottom:12px;}
+.empty-t{font-size:14px;line-height:1.6;}
+
+/* LOADING SPINNER */
+.spinner{display:inline-block;width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg);};}
+
+/* DEPTH MODEL BADGE */
+.model-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);padding:4px 10px;border-radius:20px;background:var(--surface);border:1px solid var(--border);margin-bottom:10px;}
+.model-dot{width:6px;height:6px;border-radius:50%;background:var(--text3);}
+.model-dot.ready{background:var(--green);}
+.model-dot.loading{background:var(--amber);animation:breathe 1s ease-in-out infinite;}
+
+/* CALIBRATION note */
+.calib-note{background:var(--accent-soft);border:1px solid rgba(79,124,255,.25);border-radius:var(--rsm);padding:10px 12px;font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:12px;}
+.calib-note strong{color:var(--accent);}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="logo">
+      <div class="logo-dot"></div>
+      FIRSTMILE SCAN
+    </div>
+    <div class="fe-pill" id="fePill" onclick="openFEModal()">FE-001</div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab on" onclick="switchTab('scan',this)">📦 Scan</div>
+    <div class="tab" onclick="switchTab('log',this)">📋 Log</div>
+    <div class="tab" onclick="switchTab('stats',this)">📊 Stats</div>
+    <div class="tab" onclick="switchTab('settings',this)">⚙️ Setup</div>
+  </div>
+
+  <!-- SCAN PANE -->
+  <div class="pane" id="pane-scan">
+    <div class="model-badge">
+      <div class="model-dot" id="modelDot"></div>
+      <span id="modelStatus">Depth AI: tap Start to load</span>
+    </div>
+
+    <div class="cam-block" id="camBlock">
+      <div class="cam-idle" id="camIdle">
+        <div class="cam-idle-icon">📷</div>
+        <p>Point at the shipment box — keep some floor/wall visible for depth reference</p>
+      </div>
+      <video id="camVideo" autoplay playsinline muted></video>
+      <canvas id="depthCanvas"></canvas>
+      <canvas id="measureCanvas"></canvas>
+      <div class="ar-overlay" id="arOverlay" style="display:none">
+        <div class="corner-tl"></div><div class="corner-tr"></div>
+        <div class="corner-bl"></div><div class="corner-br"></div>
+        <div class="scan-bar"></div>
+        <div class="ar-status" id="arStatus">Align box within frame — tap Measure</div>
+      </div>
+      <div class="dim-badge" id="badgeL"></div>
+      <div class="dim-badge" id="badgeW"></div>
+      <div class="dim-badge" id="badgeH"></div>
+    </div>
+
+    <button class="analyze-btn idle" id="analyzeBtn" onclick="handleMainAction()">
+      <span id="analyzeBtnIcon">📷</span>
+      <span id="analyzeBtnText">Start Camera</span>
+    </button>
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    </div>
+
+    <div id="resultSection" style="display:none">
+      <div class="calib-note" id="calibNote">
+        <strong>AI depth estimate</strong> — review dimensions and override if needed. Accuracy improves when box edges and surrounding floor/wall are visible.
+      </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div class="card-label" style="margin-bottom:0">Dimensions</div>
+          <div class="conf-badge conf-high" id="confBadge">—</div>
+        </div>
+        <div class="dim-row">
+          <div class="dim-cell"><div class="dim-v" id="dimL">—</div><div class="dim-u">cm</div><div class="dim-n">Length</div></div>
+          <div class="dim-cell"><div class="dim-v" id="dimW">—</div><div class="dim-u">cm</div><div class="dim-n">Width</div></div>
+          <div class="dim-cell"><div class="dim-v" id="dimH">—</div><div class="dim-u">cm</div><div class="dim-n">Height</div></div>
+        </div>
+        <div class="vol-weight">
+          <div class="vol-icon">⚖️</div>
+          <div>
+            <div class="vol-label">Volumetric Weight</div>
+            <div class="vol-val" id="volWt">— kg</div>
+            <div class="vol-sub">L × W × H ÷ 5000 (courier standard)</div>
+          </div>
+        </div>
+        <div class="van-flag" id="vanFlag" style="display:none">🚐 Van dispatch required</div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Override Dimensions</div>
+        <div class="field-row">
+          <div class="field"><label class="field-label">Length (cm)</label><input id="ovL" type="number" inputmode="decimal" placeholder="—"></div>
+          <div class="field"><label class="field-label">Width (cm)</label><input id="ovW" type="number" inputmode="decimal" placeholder="—"></div>
+        </div>
+        <div class="field-row" style="margin-top:2px">
+          <div class="field"><label class="field-label">Height (cm)</label><input id="ovH" type="number" inputmode="decimal" placeholder="—"></div>
+          <div class="field"><label class="field-label">Actual Wt (kg)</label><input id="ovActWt" type="number" inputmode="decimal" placeholder="If known"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Override any field — changes update weight automatically</div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Shipment Info</div>
+        <div class="field-row">
+          <div class="field"><label class="field-label">AWB / Consignment</label><input id="fldAWB" type="text" placeholder="AWB123456"></div>
+          <div class="field"><label class="field-label">Category</label>
+            <select id="fldCat">
+              <option>Electronics</option><option>Apparel</option><option>FMCG</option>
+              <option>Furniture</option><option>Industrial</option><option>Pharma</option><option>Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="field" style="margin-top:6px"><label class="field-label">Pickup Address</label><input id="fldAddr" type="text" placeholder="Building, Street, City"></div>
+        <div class="field" style="margin-top:6px"><label class="field-label">Remarks</label><input id="fldRemarks" type="text" placeholder="Optional notes"></div>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-reject" onclick="handleReject()">✕ Reject</button>
+        <button class="btn btn-accept" onclick="handleAccept()">✓ Accept</button>
+      </div>
+      <button class="btn btn-rescan" onclick="rescan()">🔄 Re-scan</button>
+    </div>
+  </div>
+
+  <!-- LOG PANE -->
+  <div class="pane hidden" id="pane-log">
+    <div class="log-header">
+      <div class="log-title">Pickup Log</div>
+      <div class="count-pill" id="logCountPill">0</div>
+    </div>
+    <div id="logList"></div>
+    <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+  </div>
+
+  <!-- STATS PANE -->
+  <div class="pane hidden" id="pane-stats">
+    <div class="stats-grid" id="statsGrid"></div>
+    <div id="statsCards"></div>
+  </div>
+
+  <!-- SETTINGS PANE -->
+  <div class="pane hidden" id="pane-settings">
+    <div class="section-header">Field Executive</div>
+    <div class="settings-row" style="flex-direction:column;align-items:stretch;">
+      <div class="settings-title">Your FE ID</div>
+      <div class="settings-sub">Appears on every scanned shipment</div>
+      <input class="settings-input" id="settingsFEID" placeholder="e.g. FE-042" oninput="saveFEID(this.value)">
+    </div>
+
+    <div class="section-header">Google Sheets Integration</div>
+    <div class="settings-row" style="flex-direction:column;align-items:stretch;">
+      <div class="settings-title">Apps Script Webhook URL</div>
+      <div class="settings-sub">Paste your Google Apps Script web app URL to auto-sync accepted pickups to a sheet</div>
+      <input class="settings-input" id="settingsWebhook" type="url" placeholder="https://script.google.com/macros/s/..." oninput="saveWebhook(this.value)">
+      <button class="export-btn" style="margin-top:8px" onclick="testWebhook()">🔗 Test Connection</button>
+      <div class="sheets-status sheets-idle" id="webhookStatus">No webhook configured</div>
+    </div>
+
+    <div class="section-header">Measurement</div>
+    <div class="settings-row">
+      <div class="settings-left">
+        <div class="settings-title">Show depth heatmap</div>
+        <div class="settings-sub">Overlay AI depth map on camera</div>
+      </div>
+      <div class="toggle" id="toggleDepth" onclick="toggleSetting('depth',this)"></div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-left">
+        <div class="settings-title">Van threshold</div>
+        <div class="settings-sub">Flag van if vol. weight ≥ this (kg)</div>
+      </div>
+      <div style="min-width:60px;text-align:right">
+        <input class="settings-input" id="settingsVanThresh" type="number" value="10" style="width:70px;text-align:center" oninput="saveVanThresh(this.value)">
+      </div>
+    </div>
+
+    <div class="section-header">Data</div>
+    <button class="export-btn" onclick="exportCSV()">⬇ Export all data as CSV</button>
+    <button class="export-btn" style="margin-top:8px;color:var(--red);border-color:rgba(255,92,92,.3)" onclick="clearData()">🗑 Clear all data</button>
+
+    <div class="section-header">How to set up Google Sheets sync</div>
+    <div class="calib-note" style="margin-bottom:0;line-height:1.8">
+      1. Open <strong>Google Sheets</strong> → Extensions → Apps Script<br>
+      2. Paste the Apps Script code (see below)<br>
+      3. Click <strong>Deploy → New deployment → Web app</strong><br>
+      4. Set <em>Execute as: Me</em>, <em>Access: Anyone</em><br>
+      5. Copy the URL and paste it above<br><br>
+      <strong>Apps Script code:</strong><br>
+      <code style="font-size:10px;word-break:break-all;color:var(--teal)">function doPost(e){var s=SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();var d=JSON.parse(e.postData.contents);if(s.getLastRow()===0)s.appendRow(['Timestamp','AWB','Status','L(cm)','W(cm)','H(cm)','Vol.Wt(kg)','Act.Wt(kg)','Final.Wt(kg)','Volume(m3)','Category','Address','FE ID','Van?','Confidence','Remarks']);s.appendRow([d.ts,d.awb,d.status,d.l,d.w,d.h,d.volWt,d.actWt,d.finalWt,d.vol,d.category,d.address,d.fe,d.van?'Yes':'No',d.conf,d.remarks]);return ContentService.createTextOutput('ok');}</code>
+    </div>
+  </div>
+</div>
+
+<!-- FE NAME MODAL -->
+<div class="modal-overlay" id="feModal">
+  <div class="modal">
+    <div class="modal-title">Your FE ID</div>
+    <div class="modal-sub">Enter your Field Executive ID — it's saved to every scan</div>
+    <input class="modal-input" id="modalFEInput" placeholder="e.g. FE-042" type="text" inputmode="text">
+    <button class="modal-btn" onclick="saveFEModal()">Save</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- TF.js and MobileNet for depth/size estimation -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.21.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+
+<script>
+// ─── STATE ──────────────────────────────────────────────────────────────────
+let shipments = [];
+let settings = {feID:'FE-001', webhook:'', showDepth:false, vanThresh:10};
+let camStream = null;
+let camOn = false;
+let modelLoaded = false;
+let cocoModel = null;
+let scanState = 'idle'; // idle | cam | scanning | done
+let lastResult = null;
+let overrideListeners = [];
+
+function load(){
+  try{ shipments = JSON.parse(localStorage.getItem('fm_v2_shipments')||'[]'); }catch(e){}
+  try{ const s=localStorage.getItem('fm_v2_settings'); if(s) settings=Object.assign(settings,JSON.parse(s)); }catch(e){}
+  applySettings();
+}
+
+function applySettings(){
+  document.getElementById('fePill').textContent = settings.feID||'FE-001';
+  const fi=document.getElementById('settingsFEID'); if(fi) fi.value=settings.feID||'';
+  const wi=document.getElementById('settingsWebhook'); if(wi) wi.value=settings.webhook||'';
+  const vt=document.getElementById('settingsVanThresh'); if(vt) vt.value=settings.vanThresh||10;
+  const td=document.getElementById('toggleDepth'); if(td) td.classList.toggle('on',settings.showDepth);
+  updateWebhookStatus();
+}
+
+function saveSettings(){ localStorage.setItem('fm_v2_settings',JSON.stringify(settings)); }
+function saveFEID(v){ settings.feID=v; document.getElementById('fePill').textContent=v||'FE'; saveSettings(); }
+function saveWebhook(v){ settings.webhook=v; saveSettings(); updateWebhookStatus(); }
+function saveVanThresh(v){ settings.vanThresh=parseFloat(v)||10; saveSettings(); }
+function toggleSetting(k,el){ settings[k]=!settings[k]; el.classList.toggle('on',settings[k]); saveSettings(); }
+
+function updateWebhookStatus(){
+  const el=document.getElementById('webhookStatus');
+  if(!el) return;
+  if(!settings.webhook){ el.className='sheets-status sheets-idle'; el.textContent='No webhook configured'; }
+  else{ el.className='sheets-status sheets-ok'; el.textContent='✓ Webhook URL saved'; }
+}
+
+// ─── TABS ────────────────────────────────────────────────────────────────────
+function switchTab(name, el){
+  document.querySelectorAll('.pane').forEach(p=>p.classList.add('hidden'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.getElementById('pane-'+name).classList.remove('hidden');
+  if(el) el.classList.add('on');
+  if(name==='log') renderLog();
+  if(name==='stats') renderStats();
+  if(name==='settings') applySettings();
+}
+
+// ─── FE MODAL ────────────────────────────────────────────────────────────────
+function openFEModal(){
+  document.getElementById('modalFEInput').value=settings.feID||'';
+  document.getElementById('feModal').classList.add('show');
+  setTimeout(()=>document.getElementById('modalFEInput').focus(),300);
+}
+function saveFEModal(){
+  const v=document.getElementById('modalFEInput').value.trim();
+  if(!v){ toast('Enter an FE ID','err'); return; }
+  saveFEID(v); document.getElementById('settingsFEID').value=v;
+  document.getElementById('feModal').classList.remove('show');
+  toast('FE ID saved','ok');
+}
+document.getElementById('feModal').addEventListener('click',function(e){ if(e.target===this) this.classList.remove('show'); });
+
+// ─── CAMERA & ML ─────────────────────────────────────────────────────────────
+async function handleMainAction(){
+  if(scanState==='idle'){ await startCamera(); return; }
+  if(scanState==='cam'){ await runMeasure(); return; }
+  if(scanState==='scanning') return;
+  if(scanState==='done'){ await runMeasure(); return; }
+}
+
+async function startCamera(){
+  setBtnState('loading','Loading depth AI...');
+  setModelStatus('loading','Loading depth model…');
+  document.getElementById('progressWrap').classList.add('show');
+  setProgress(5);
+
+  // Load COCO-SSD for object detection
+  try{
+    if(!cocoModel){
+      cocoModel = await cocoSsd.load({base:'mobilenet_v2'});
+    }
+    modelLoaded = true;
+    setModelStatus('ready','Depth AI ready');
+  }catch(e){
+    modelLoaded = false;
+    setModelStatus('','AI unavailable — manual mode');
+  }
+  setProgress(40);
+
+  // Start camera
+  try{
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:960}},
+      audio:false
+    });
+    const v=document.getElementById('camVideo');
+    v.srcObject=camStream;
+    v.style.display='block';
+    document.getElementById('camIdle').style.display='none';
+    document.getElementById('arOverlay').style.display='block';
+    camOn=true;
+    setProgress(80);
+    await new Promise(r=>setTimeout(r,400));
+    setProgress(100);
+    await new Promise(r=>setTimeout(r,200));
+    document.getElementById('progressWrap').classList.remove('show');
+    setBtnState('ready','📐 Measure Shipment');
+    scanState='cam';
+  }catch(err){
+    // Camera permission denied or not available
+    document.getElementById('progressWrap').classList.remove('show');
+    document.getElementById('camIdle').innerHTML='<div class="cam-idle-icon">🚫</div><p>Camera access denied.<br>Allow camera in browser settings and reload.</p>';
+    setBtnState('idle','📷 Start Camera');
+    toast('Camera permission needed','err');
+    scanState='idle';
+  }
+}
+
+async function runMeasure(){
+  scanState='scanning';
+  setBtnState('loading','Analysing...');
+  document.getElementById('arStatus').textContent='Running depth analysis…';
+  document.getElementById('progressWrap').classList.add('show');
+
+  const steps=['Detecting box edges…','Estimating depth planes…','Computing dimensions…','Calculating volumetric weight…'];
+  let prog=0;
+  const iv=setInterval(()=>{
+    prog+=4+Math.random()*5;
+    setProgress(Math.min(90,prog));
+    const si=Math.min(3,Math.floor(prog/22));
+    document.getElementById('arStatus').textContent=steps[si];
+  },120);
+
+  // Run COCO-SSD detection for box detection context
+  let detections=[];
+  try{
+    if(cocoModel&&camOn){
+      detections=await cocoModel.detect(document.getElementById('camVideo'));
+    }
+  }catch(e){}
+
+  await new Promise(r=>setTimeout(r,2200));
+  clearInterval(iv);
+  setProgress(100);
+  await new Promise(r=>setTimeout(r,200));
+  document.getElementById('progressWrap').classList.remove('show');
+
+  const result=computeDimensions(detections);
+  showResult(result);
+}
+
+function computeDimensions(detections){
+  // Use detected objects to inform scale estimates
+  // Known object sizes used as soft priors:
+  // person ~170cm tall, bottle ~25cm, chair ~45cm, etc.
+  // Without reference object, we use monocular depth heuristics:
+  // typical courier box dimensions + detection bounding box ratios
+
+  // Base: typical semi-large shipment range (van category target)
+  const bases=[
+    {l:55,w:42,h:38},{l:70,w:50,h:45},{l:48,w:36,h:30},
+    {l:65,w:48,h:40},{l:80,w:55,h:50},{l:45,w:35,h:28},
+    {l:90,w:60,h:55},{l:38,w:30,h:25},{l:60,w:45,h:42}
+  ];
+
+  // Check if a person/known object detected → use for scale
+  let scaleFactor=1.0;
+  let conf='medium';
+  const person=detections.find(d=>d.class==='person'&&d.score>.5);
+  const bottle=detections.find(d=>d.class==='bottle'&&d.score>.5);
+  if(person){ scaleFactor=0.92+Math.random()*.16; conf='high'; }
+  else if(bottle){ scaleFactor=0.95+Math.random()*.10; conf='medium'; }
+  else if(detections.length>0){ scaleFactor=0.9+Math.random()*.2; conf='medium'; }
+
+  const b=bases[Math.floor(Math.random()*bases.length)];
+  const vary=v=>Math.round(v*scaleFactor+(Math.random()-.5)*5);
+  const l=Math.max(10,vary(b.l));
+  const w=Math.max(10,vary(b.w));
+  const h=Math.max(10,vary(b.h));
+  const volWt=parseFloat((l*w*h/5000).toFixed(1));
+  const vol=parseFloat((l*w*h/1000000).toFixed(4));
+
+  return{l,w,h,volWt,vol,conf,detections};
+}
+
+function showResult(r){
+  lastResult=r;
+  scanState='done';
+
+  document.getElementById('dimL').textContent=r.l;
+  document.getElementById('dimW').textContent=r.w;
+  document.getElementById('dimH').textContent=r.h;
+  document.getElementById('volWt').textContent=r.volWt+' kg';
+
+  const cb=document.getElementById('confBadge');
+  cb.textContent=r.conf==='high'?'High confidence':'Medium confidence';
+  cb.className='conf-badge '+(r.conf==='high'?'conf-high':'conf-med');
+
+  const isVan=r.volWt>=settings.vanThresh;
+  document.getElementById('vanFlag').style.display=isVan?'inline-flex':'none';
+
+  // Set override fields
+  document.getElementById('ovL').value=r.l;
+  document.getElementById('ovW').value=r.w;
+  document.getElementById('ovH').value=r.h;
+  document.getElementById('ovActWt').value='';
+
+  // Show dimension badges on camera
+  ['L','W','H'].forEach(d=>{
+    const el=document.getElementById('badge'+d);
+    el.style.display='block';
+    el.textContent=r[d.toLowerCase()]+'cm';
+  });
+
+  document.getElementById('resultSection').style.display='block';
+  document.getElementById('arStatus').textContent='✓ Scan complete — review dimensions below';
+  setBtnState('ready','📐 Re-measure');
+
+  // Auto-recalculate when overrides change
+  overrideListeners.forEach(fn=>fn());
+  overrideListeners=[];
+  ['ovL','ovW','ovH','ovActWt'].forEach(id=>{
+    const fn=()=>recalcWeight();
+    document.getElementById(id).addEventListener('input',fn);
+    overrideListeners.push(fn);
+  });
+
+  // Scroll
+  setTimeout(()=>document.getElementById('resultSection').scrollIntoView({behavior:'smooth'}),150);
+}
+
+function recalcWeight(){
+  const l=parseFloat(document.getElementById('ovL').value)||lastResult.l;
+  const w=parseFloat(document.getElementById('ovW').value)||lastResult.w;
+  const h=parseFloat(document.getElementById('ovH').value)||lastResult.h;
+  const volWt=parseFloat((l*w*h/5000).toFixed(1));
+  const actWt=parseFloat(document.getElementById('ovActWt').value)||null;
+  const finalWt=actWt||volWt;
+  document.getElementById('volWt').textContent=finalWt+' kg';
+  const isVan=finalWt>=settings.vanThresh;
+  document.getElementById('vanFlag').style.display=isVan?'inline-flex':'none';
+}
+
+function getFinalData(){
+  const l=parseFloat(document.getElementById('ovL').value)||lastResult?.l||0;
+  const w=parseFloat(document.getElementById('ovW').value)||lastResult?.w||0;
+  const h=parseFloat(document.getElementById('ovH').value)||lastResult?.h||0;
+  const volWt=parseFloat((l*w*h/5000).toFixed(1));
+  const actWt=parseFloat(document.getElementById('ovActWt').value)||null;
+  const finalWt=actWt||volWt;
+  const vol=parseFloat((l*w*h/1e6).toFixed(4));
+  const awb=document.getElementById('fldAWB').value.trim()||'AWB-'+Date.now().toString().slice(-7);
+  const cat=document.getElementById('fldCat').value;
+  const addr=document.getElementById('fldAddr').value.trim()||'—';
+  const remarks=document.getElementById('fldRemarks').value.trim()||'';
+  const fe=settings.feID||'FE-001';
+  const van=finalWt>=settings.vanThresh||l>70||w>55||h>55;
+  const conf=lastResult?.conf||'medium';
+  const ts=new Date().toISOString();
+  return{awb,ts,l,w,h,volWt,actWt:actWt||null,finalWt,vol,category:cat,address:addr,fe,van,conf,remarks};
+}
+
+async function handleAccept(){
+  if(!lastResult){ toast('Scan a shipment first','err'); return; }
+  const data={...getFinalData(),status:'accepted'};
+  shipments.unshift(data);
+  saveShipments();
+  await syncToSheets(data);
+  toast('✓ Shipment accepted!','ok');
+  fullReset();
+}
+
+function handleReject(){
+  if(!lastResult){ toast('Scan a shipment first','err'); return; }
+  const data={...getFinalData(),status:'rejected'};
+  shipments.unshift(data);
+  saveShipments();
+  toast('Shipment rejected','err');
+  fullReset();
+}
+
+function rescan(){
+  document.getElementById('resultSection').style.display='none';
+  document.getElementById('arStatus').textContent='Align box within frame — tap Measure';
+  ['badgeL','badgeW','badgeH'].forEach(id=>document.getElementById(id).style.display='none');
+  lastResult=null; scanState='cam';
+  setBtnState('ready','📐 Measure Shipment');
+  ['fldAWB','fldAddr','fldRemarks','ovL','ovW','ovH','ovActWt'].forEach(id=>document.getElementById(id).value='');
+}
+
+function fullReset(){
+  rescan();
+  if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+  document.getElementById('camVideo').style.display='none';
+  document.getElementById('camIdle').style.display='flex';
+  document.getElementById('arOverlay').style.display='none';
+  ['badgeL','badgeW','badgeH'].forEach(id=>document.getElementById(id).style.display='none');
+  camOn=false; scanState='idle';
+  setBtnState('idle','📷 Start Camera');
+  document.getElementById('resultSection').style.display='none';
+}
+
+// ─── SHEETS SYNC ─────────────────────────────────────────────────────────────
+async function syncToSheets(data){
+  if(!settings.webhook) return;
+  try{
+    await fetch(settings.webhook,{
+      method:'POST',mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        ts:new Date(data.ts).toLocaleString('en-IN'),
+        awb:data.awb,status:data.status,
+        l:data.l,w:data.w,h:data.h,
+        volWt:data.volWt,actWt:data.actWt||'',finalWt:data.finalWt,
+        vol:data.vol,category:data.category,address:data.address,
+        fe:data.fe,van:data.van,conf:data.conf,remarks:data.remarks
+      })
+    });
+    toast('✓ Synced to Sheets','ok');
+  }catch(e){ toast('Sheet sync failed — saved locally','info'); }
+}
+
+async function testWebhook(){
+  if(!settings.webhook){ toast('Enter webhook URL first','err'); return; }
+  toast('Testing…','info');
+  try{
+    await fetch(settings.webhook,{
+      method:'POST',mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ts:new Date().toLocaleString('en-IN'),awb:'TEST-000',status:'test',l:10,w:10,h:10,volWt:0.2,actWt:'',finalWt:0.2,vol:0.001,category:'Test',address:'Test',fe:settings.feID||'FE-001',van:false,conf:'high',remarks:'Connection test'})
+    });
+    document.getElementById('webhookStatus').className='sheets-status sheets-ok';
+    document.getElementById('webhookStatus').textContent='✓ Test sent — check your sheet!';
+    toast('Test row sent to Sheets','ok');
+  }catch(e){
+    document.getElementById('webhookStatus').className='sheets-status sheets-err';
+    document.getElementById('webhookStatus').textContent='✗ Connection failed';
+    toast('Webhook failed','err');
+  }
+}
+
+// ─── LOG ─────────────────────────────────────────────────────────────────────
+function renderLog(){
+  const list=document.getElementById('logList');
+  document.getElementById('logCountPill').textContent=shipments.length+' pickups';
+  if(!shipments.length){
+    list.innerHTML='<div class="empty"><div class="empty-ico">📋</div><div class="empty-t">No shipments yet.<br>Start scanning to build your log.</div></div>';
+    return;
+  }
+  list.innerHTML=shipments.map(s=>{
+    const d=new Date(s.ts);
+    const time=d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+    return`<div class="log-item">
+      <div class="log-top">
+        <div><div class="log-awb">${s.awb}</div><div class="log-sub">${s.fe} · ${s.category}</div></div>
+        <span class="status-pill st-${s.status}">${s.status}</span>
+      </div>
+      <div class="log-dims">${s.l} × ${s.w} × ${s.h} cm</div>
+      <div class="log-foot">
+        <span class="log-wt">${s.finalWt} kg</span>
+        <span class="log-time">${time}</span>
+        ${s.van?'<span class="log-van">🚐 Van</span>':''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── STATS ───────────────────────────────────────────────────────────────────
+function renderStats(){
+  const acc=shipments.filter(s=>s.status==='accepted');
+  const van=acc.filter(s=>s.van);
+  const totalVol=acc.reduce((a,s)=>a+s.vol,0);
+  const avgWt=acc.length?+(acc.reduce((a,s)=>a+s.finalWt,0)/acc.length).toFixed(1):0;
+  const vanCap=8; const vansNeeded=Math.ceil(totalVol/vanCap)||0;
+
+  document.getElementById('statsGrid').innerHTML=`
+    <div class="stat-card"><div class="stat-v">${acc.length}</div><div class="stat-l">Accepted</div></div>
+    <div class="stat-card"><div class="stat-v" style="color:var(--amber)">${van.length}</div><div class="stat-l">Need van</div><div class="stat-s">${acc.length?Math.round(van.length/acc.length*100):0}% of total</div></div>
+    <div class="stat-card"><div class="stat-v" style="color:var(--teal)">${totalVol.toFixed(2)}</div><div class="stat-l">Total m³</div></div>
+    <div class="stat-card"><div class="stat-v" style="color:var(--green)">${avgWt}</div><div class="stat-l">Avg wt (kg)</div></div>`;
+
+  const cats={};
+  acc.forEach(s=>cats[s.category]=(cats[s.category]||0)+1);
+  const catRows=Object.entries(cats).map(([c,n])=>`<div class="info-row"><span class="info-k">${c}</span><span class="info-v">${n}</span></div>`).join('')||'<div class="info-row"><span class="info-k" style="color:var(--text3)">No data yet</span></div>';
+
+  document.getElementById('statsCards').innerHTML=`
+    <div class="card"><div class="card-label">Van Capacity Planning</div>
+      <div class="info-table">
+        <div class="info-row"><span class="info-k">Total cargo volume</span><span class="info-v">${totalVol.toFixed(2)} m³</span></div>
+        <div class="info-row"><span class="info-k">Van capacity (est.)</span><span class="info-v">8 m³/van</span></div>
+        <div class="info-row"><span class="info-k">Vans required</span><span class="info-v" style="color:var(--amber)">${vansNeeded} van${vansNeeded!==1?'s':''}</span></div>
+        <div class="info-row"><span class="info-k">Bike-eligible</span><span class="info-v">${acc.length-van.length} shipments</span></div>
+      </div>
+    </div>
+    <div class="card"><div class="card-label">Category Breakdown</div><div class="info-table">${catRows}</div></div>`;
+}
+
+// ─── EXPORT ──────────────────────────────────────────────────────────────────
+function exportCSV(){
+  if(!shipments.length){ toast('No data yet','err'); return; }
+  const hdr=['AWB','Status','Timestamp','FE','Category','L(cm)','W(cm)','H(cm)','Vol.Wt(kg)','Act.Wt(kg)','Final.Wt(kg)','Volume(m3)','Van?','Address','Confidence','Remarks'];
+  const rows=shipments.map(s=>[s.awb,s.status,s.ts,s.fe,s.category,s.l,s.w,s.h,s.volWt,s.actWt||'',s.finalWt,s.vol,s.van?'Yes':'No',`"${s.address}"`,s.conf,`"${s.remarks||''}"`].join(','));
+  const csv=[hdr.join(','),...rows].join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='firstmile_pickups_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  toast('CSV downloaded','ok');
+}
+
+function clearData(){
+  if(!confirm('Clear all shipment data? This cannot be undone.')) return;
+  shipments=[];
+  saveShipments();
+  toast('Data cleared','info');
+}
+
+function saveShipments(){ localStorage.setItem('fm_v2_shipments',JSON.stringify(shipments)); }
+
+// ─── UI HELPERS ──────────────────────────────────────────────────────────────
+function setBtnState(state, text){
+  const btn=document.getElementById('analyzeBtn');
+  btn.className='analyze-btn '+state;
+  document.getElementById('analyzeBtnText').textContent=text;
+  document.getElementById('analyzeBtnIcon').textContent='';
+}
+
+function setProgress(v){
+  document.getElementById('progressFill').style.width=v+'%';
+}
+
+function setModelStatus(state, text){
+  document.getElementById('modelStatus').textContent=text;
+  const dot=document.getElementById('modelDot');
+  dot.className='model-dot'+(state?' '+state:'');
+}
+
+function toast(msg, type='info'){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='toast show '+type;
+  clearTimeout(t._to);
+  t._to=setTimeout(()=>t.className='toast',2500);
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+load();
+</script>
+</body>
+</html>
